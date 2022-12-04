@@ -8,7 +8,7 @@ fng = fear_last_6month()
 
 # 나중에는 그냥 decision에서 데이터 한번 불러온 후에 param으로 전달해야지.
 
-def fngModel():
+def fngModel(fng):
     '''
     공포탐욕지수가 0에 가깝다. -> Extreme Fear (하락장)
     공포탐욕지수가 100에 가깝다. -> Extreme Greedy (상승장)
@@ -20,7 +20,6 @@ def fngModel():
     ㄴ 탐욕장(상승장 분위기)이면 사야지
     ㄴ 공포장(하락장 분위기)이면 팔아야지
     '''
-    global fng
     m = Prophet()
     df = fng.reset_index()
     df['ds'] = df['index']
@@ -40,8 +39,7 @@ def fngModel():
 
 # print(fngModel())    
 
-def closePriceModel():
-    global ppd 
+def trendPredictModel(ppd):
     m = Prophet()
     df = ppd.reset_index()
     df['ds'] = df['index']
@@ -67,5 +65,4 @@ def closePriceModel():
 
     return trd
 
-
-closePriceModel()
+ 
