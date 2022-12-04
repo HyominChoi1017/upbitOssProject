@@ -3,8 +3,8 @@ RSI-EMA 지표 산출, RNN 모델 훈련하기 전 필요한 데이터 셋을 py
 RSI-EMA 지수를 기존 데이터셋에 추가한다. 
 '''
 
-
-import pyupbit
+import matplotlib.pyplot as plt
+import pyupbit 
 
 def prepareData():
     df = pyupbit.get_ohlcv('KRW-BTC', interval='minute60')
@@ -21,4 +21,3 @@ def prepareData():
 
     return df 
 
-print(prepareData())
