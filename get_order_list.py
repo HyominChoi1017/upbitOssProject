@@ -8,26 +8,30 @@ import requests
 access_key = ''
 secret_key = ''
 
-query = {
-    'market': 'KRW-ETH',
-    'state': 'done',
-}
 
-m = hashlib.sha512()
-m.update(urlencode(query).encode())
-query_hash = m.hexdigest()
+def ordered_data():
+    query = {
+        'market': 'KRW-ETH',
+        'state': 'done',
+    }
 
-payload = {
-    'access_key': access_key,
-    'nonce': str(uuid.uuid4()),
-    'query_hash': query_hash,
-    'query_hash_alg': 'SHA512',
-}
+    m = hashlib.sha512()
+    m.update(urlencode(query).encode())
+    query_hash = m.hexdigest()
 
-jwt_token = jwt.encode(payload, secret_key).decode('utf-8')
-authorize_token = 'Bearer {}'.format(jwt_token)
-headers = {"Authorization": authorize_token}
+    payload = {
+        'access_key': access_key,
+        'nonce': str(uuid.uuid4()),
+        'query_hash': query_hash,
+        'query_hash_alg': 'SHA512',
+    }
 
-res = requests.get('https://api.upbit.com/v1/orders', params=query, headers=headers)
+    jwt_token = jwt.encode(payload, secret_key).decode('utf-8')
+    authorize_token = 'Bearer {}'.format(jwt_token)
+    headers = {"Authorization": authorize_token}
 
-print(res.json())
+    res = requests.get('https://api.upbit.com/v1/orders', params=query, headers=headers)
+
+    print(res.json())
+
+    return res

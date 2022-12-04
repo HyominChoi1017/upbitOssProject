@@ -1,9 +1,16 @@
 import websocket, json, time, requests
 import hashlib, jwt, uuid
 import math
-from urllib.parse import urlencode
+from urllib.parse import urlencode, unquote
 import os
+from datetime import datetime
+import sys
 
+sys.path.insert(0, '../tradeAlgorithm')
+from get_account import account_data
+from get_order_list import ordered_data
+from dataPrepare import prepareData
+from predictModel import fngModel, trendPredictModel
 try:
     import thread
 except ImportError:
@@ -13,114 +20,27 @@ except ImportError:
 access_key = ''
 secret_key = ''
 
-price = 0
-sell_price = 0
-buy_price = 0
-
-sell_cnt = 0
-buy_cnt = 0
-fuck_cnt = 0
-
 def on_message(ws, message):
-    json_data = json.loads(message)
-    global price, sell_price, buy_price, sell_cnt, buy_cnt, fuck_cnt
-    if price == 0:
-        price = json_data['trade_price']
-        print(price, ' [코인의 가격 설정]')
-    else:
-        percent = (price - json_data['trade_price']) / json_data['trade_price'] * 100
-        # print('------------------------')
-        # print(price)
-        # print('시작 가격보다 ', percent, '변화')
-        if percent < -0.3:
-            if buy_price == 0:
-                price = json_data['trade_price']
-                print(math.trunc(price), ' [기준가 재설정]', percent, ' 퍼센트')
-            else:# 매도 해야함 - 손절
-                print('■□손절□■■□손절□■■□손절□■■□손절□■■□손절□■■□손절□■■□손절□■■□손절□■■□손절□■■□손절□■')
-                fuck_cnt = fuck_cnt + 1
-                print(math.trunc(price), ' [손절가] : ', fuck_cnt, percent, '%')
-                sell_price = json_data['trade_price'] # 판매가격
-                price = sell_price
-                buy_price = 0
-                query = {
-                    'market': 'KRW-BTC',
-                    'side': 'ask',
-                    'volume': '0.00013',
-                    # 'price': math.trunc(json_data['trade_price']),
-                    # 'ord_type': 'limit',
-                    'ord_type': 'market',
-                }
-                query_string = urlencode(query).encode()
+    print(message)
+    if datetime.now().minute == 0:
+        df = prepareData()
+        if df['signal'].iloc[-1] == True and df['signal'].iloc[-2] == False:
+            print('매수?')
+            # voting algorithm 가져와..
+            fngIndex = fngModel()
+            trendIndex = trendPredictModel()
+            if trendIndex >= 0: # 공포탐욕지수는 활용법 (threshold) 조금 더 생각해보자
+                print('매수!!!')
+                CURRENT_PRICE = 0
+                MY_BULLET = account_data.balance # 현재 장전된 총알 (지갑 총량)
 
-                m = hashlib.sha512()
-                m.update(query_string)
-                query_hash = m.hexdigest()
-
-                payload = {
-                    'access_key': access_key,
-                    'nonce': str(uuid.uuid4()),
-                    'query_hash': query_hash,
-                    'query_hash_alg': 'SHA512',
-                }
-
-                jwt_token = jwt.encode(payload, secret_key).decode('utf-8')
-                authorize_token = 'Bearer {}'.format(jwt_token)
-                headers = {"Authorization": authorize_token}
-
-                res = requests.post('https://api.upbit.com/v1/orders', params=query, headers=headers)
-                # print(res.json())
-        if percent > 0.1:
-            if buy_price != 0:# 익절
-                if percent > 0.3:
-                    print('■□익절□■■□익절□■■□익절□■■□익절□■■□익절□■■□익절□■■□익절□■■□익절□■■□익절□■■□익절□■')
-                    sell_cnt = sell_cnt + 1
-                    print(math.trunc(price), ' [익절가] : ', sell_cnt, percent, '%')
-                    sell_price = json_data['trade_price'] # 판매가격
-                    price = sell_price
-                    buy_price = 0
-                    query = {
-                        'market': 'KRW-BTC',
-                        'side': 'ask',
-                        'volume': '0.00013',
-                        # 'price': math.trunc(json_data['trade_price']),
-                        # 'ord_type': 'limit',
-                        'ord_type': 'market',
-                    }
-                    query_string = urlencode(query).encode()
-
-                    m = hashlib.sha512()
-                    m.update(query_string)
-                    query_hash = m.hexdigest()
-
-                    payload = {
-                        'access_key': access_key,
-                        'nonce': str(uuid.uuid4()),
-                        'query_hash': query_hash,
-                        'query_hash_alg': 'SHA512',
-                    }
-
-                    jwt_token = jwt.encode(payload, secret_key).decode('utf-8')
-                    authorize_token = 'Bearer {}'.format(jwt_token)
-                    headers = {"Authorization": authorize_token}
-
-                    res = requests.post('https://api.upbit.com/v1/orders', params=query, headers=headers)
-                    # print(res.json())
-            else: # 매수
-                print('■□매수□■■□매수□■■□매수□■■□매수□■■□매수□■■□매수□■■□매수□■■□매수□■■□매수□■■□매수□■')
-                buy_cnt = buy_cnt + 1
-                print(math.trunc(price), ' [매수가] : ', buy_cnt)
-                buy_price = json_data['trade_price']
-                price = json_data['trade_price']
-                query = {
+                params = {
                     'market': 'KRW-BTC',
                     'side': 'bid',
-                    'volume': '0.00013',
-                    'price': math.trunc(json_data['trade_price']) + 50000,
-                    # 'ord_type': 'price',
-                    'ord_type': 'limit',
+                    'ord_type': 'price',
+                    'price': MY_BULLET,
                 }
-                query_string = urlencode(query).encode()
+                query_string = unquote(urlencode(params, doseq=True)).encode("utf-8")
 
                 m = hashlib.sha512()
                 m.update(query_string)
@@ -133,12 +53,54 @@ def on_message(ws, message):
                     'query_hash_alg': 'SHA512',
                 }
 
-                jwt_token = jwt.encode(payload, secret_key).decode('utf-8')
-                authorize_token = 'Bearer {}'.format(jwt_token)
-                headers = {"Authorization": authorize_token}
+                jwt_token = jwt.encode(payload, secret_key)
+                authorization = 'Bearer {}'.format(jwt_token)
+                headers = {
+                    'Authorization': authorization,
+                }
 
-                res = requests.post('https://api.upbit.com/v1/orders', params=query, headers=headers)
-                # print(res.json())
+                res = requests.post('https://api.upbit.com/v1/orders', json=params, headers=headers)
+                res.json()
+
+
+            
+
+        elif df['signal'].iloc[-1] == False and df['signal'].iloc[-2] == True:
+            print('매도?')
+            #votine algorithm 가져와...
+            fngIndex = fngModel()
+            trendIndex = trendPredictModel()
+            if trendIndex < 0:
+                print('매도!')
+                params = {
+                    'market': 'KRW-BTC',
+                    'side': 'ask',
+                    'ord_type': 'market',
+                    'volume': ordered_data.volume
+                }
+                query_string = unquote(urlencode(params, doseq=True)).encode("utf-8")
+
+                m = hashlib.sha512()
+                m.update(query_string)
+                query_hash = m.hexdigest()
+
+                payload = {
+                    'access_key': access_key,
+                    'nonce': str(uuid.uuid4()),
+                    'query_hash': query_hash,
+                    'query_hash_alg': 'SHA512',
+                }
+
+                jwt_token = jwt.encode(payload, secret_key)
+                authorization = 'Bearer {}'.format(jwt_token)
+                headers = {
+                    'Authorization': authorization,
+                }
+
+                res = requests.post('https://api.upbit.com/v1/orders', json=params, headers=headers)
+                res.json()
+
+
 
 
 def on_error(ws, error):
@@ -155,7 +117,7 @@ def on_open(ws):
 
 
 websocket.enableTrace(True)
-ws = websocket.WebSocketApp("ws://api.upbit.com/websocket/v1",
+ws = websocket.WebSocketApp("ws://api.upbit.com/websocket/v1/orders",
                             on_message=on_message,
                             on_error=on_error,
                             on_close=on_close)
